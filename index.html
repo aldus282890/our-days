@@ -18,6 +18,15 @@ textarea{min-height:75px}small,.muted{color:#8b727b}.stats{font-weight:700;color
 </style></head>
 <body><header><h1>우리, 그날 💗</h1><p>소중한 순간을 한 장씩 모으는 공간</p></header>
 <main class="wrap">
+<section class="card" id="authCard"><h2>🔐 커플 계정 로그인 (준비 단계)</h2>
+<p class="muted">Supabase의 프로젝트 URL과 게시 가능한 키를 입력하면 회원가입과 로그인을 시험할 수 있어. 설정값은 이 기기에만 저장돼.</p>
+<label>Project URL<input id="projectUrl" type="text" placeholder="https://xxxxx.supabase.co"></label>
+<label>Publishable key 또는 legacy anon key<input id="publicKey" type="text" placeholder="sb_publishable_... 또는 eyJ..."></label>
+<button id="connect">연결 설정 저장</button><p id="authStatus" role="status">연결 전</p>
+<div id="authFields"><label>이메일<input id="email" type="email" placeholder="you@example.com" style="width:100%;padding:11px;margin:6px 0 12px;border:1px solid #e8cbd5;border-radius:10px"></label>
+<label>비밀번호<input id="password" type="password" minlength="6" placeholder="비밀번호" style="width:100%;padding:11px;margin:6px 0 12px;border:1px solid #e8cbd5;border-radius:10px"></label>
+<button id="signup">회원가입</button> <button id="login">로그인</button> <button id="logout">로그아웃</button></div>
+<p class="notice">현재는 로그인만 테스트하는 단계야. 아래 추억 기록은 아직 이 브라우저에만 저장되며, 남자친구와 공유되지 않아. 실제 대화나 사진은 데이터베이스에 업로드하지 마.</p></section>
 <section class="card"><h2>💌 카카오톡 대화 불러오기</h2>
 <p class="muted">카카오톡에서 내보낸 .txt 파일을 선택해 줘. 파일은 서버로 전송하지 않고 이 기기에서만 읽어.</p>
 <input id="file" type="file" accept=".txt,text/plain"><p id="status" role="status">아직 선택한 파일이 없어.</p>
@@ -54,4 +63,38 @@ $('summary').innerHTML=count?`<p class="stats">인식된 메시지 ${count.toLoc
 $('messages').innerHTML=samples.length?'<h2>미리보기 (최대 8개)</h2>'+samples.map(s=>`<div class="entry"><time>${esc(s.when)}</time><strong> ${esc(s.who)}</strong><p>${esc(s.msg)}</p></div>`).join(''):'';
 }catch(err){$('status').textContent='파일 읽기 중 오류가 발생했어.';console.error(err)}});
 renderEntries();renderCalendar();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(function(){
+ let client=null;
+ const status=document.getElementById('authStatus');
+ const url=document.getElementById('projectUrl');
+ const key=document.getElementById('publicKey');
+ try{url.value=localStorage.getItem('ourDaysProjectUrl')||'';key.value=localStorage.getItem('ourDaysPublicKey')||'';}catch{}
+ function show(msg){status.textContent=msg}
+ function connect(){
+  const u=url.value.trim(), k=key.value.trim();
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(u)){show('Project URL 형식을 확인해 줘.');return false}
+  if(!/^(sb_publishable_|eyJ)/.test(k)){show('Publishable key 또는 anon key를 확인해 줘.');return false}
+  if(!window.supabase){show('라이브러리를 불러오지 못했어. 인터넷 연결을 확인해 줘.');return false}
+  try{client=window.supabase.createClient(u,k);localStorage.setItem('ourDaysProjectUrl',u);localStorage.setItem('ourDaysPublicKey',k);show('연결 설정 완료. 로그인할 수 있어.');client.auth.getUser().then(({data})=>{if(data?.user)show('로그인 중: '+data.user.email)});return true}catch(e){show('연결 오류: '+e.message);return false}
+ }
+ document.getElementById('connect').onclick=connect;
+ async function action(type){if(!client&&!connect())return;const email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;
+ if(type!=='logout'&&(!email||!password)){show('이메일과 비밀번호를 입력해 줘.');return}
+ show('처리 중...');try{let r;
+ if(type==='signup')r=await client.auth.signUp({email,password});
+ if(type==='login')r=await client.auth.signInWithPassword({email,password});
+ if(type==='logout')r=await client.auth.signOut();
+ if(r.error)throw r.error;
+ if(type==='signup')show(r.data.session?'회원가입 및 로그인 완료':'가입 요청 완료! 이메일 인증 메일을 확인해 줘.');
+ if(type==='login')show('로그인 성공: '+r.data.user.email);
+ if(type==='logout')show('로그아웃 완료');
+ document.getElementById('password').value='';
+ }catch(e){show('오류: '+e.message)}
+ }
+ for(const type of ['signup','login','logout'])document.getElementById(type).onclick=()=>action(type);
+ if(url.value&&key.value)connect();
+})();
 </script></body></html>
